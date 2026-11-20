@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Capacitor KMP – Example</title>
+    <meta
+      name="viewport"
+      content="viewport-fit=cover, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Capacitor <span class="accent">×</span> Kotlin Multiplatform</h1>
+        <p class="muted">
+          Every result below is produced by the same shared Kotlin code (<code>CoreInfoModule</code>), running natively
+          on Android and iOS and compiled to JavaScript on the Web.
+        </p>
+      </header>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>getKmpInfo()</h2>
+          <button id="infoButton">Run</button>
+        </div>
+        <dl id="info" class="kv"><div class="muted">Not run yet</div></dl>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>echo()</h2>
+        </div>
+        <div class="row">
+          <input type="text" id="echoInput" value="Hello from JavaScript!" aria-label="Echo text" />
+          <button id="echoButton">Send</button>
+        </div>
+        <pre id="echoResult" class="muted">Not run yet</pre>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Error handling</h2>
+          <button id="errorButton">Call echo() without value</button>
+        </div>
+        <pre id="errorResult" class="muted">Kotlin throws KmpException(INVALID_ARGUMENT) → rejected promise</pre>
+      </section>
+    </main>
+    <script src="./main.js" type="module"></script>
+  </body>
+</html>

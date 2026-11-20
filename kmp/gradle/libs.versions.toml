@@ -1,0 +1,26 @@
+# Shared versions for capacitor-kotlin-multi-platform and every plugin built on it.
+# Consumer plugins import this file as their version catalog so that the Kotlin compiler
+# version always matches the one the `core` klibs were built with.
+[versions]
+kotlin = "2.4.21"
+# Kotlin language/API level + stdlib version exposed to Android apps. Capacitor 8 apps compile
+# plugin glue with Kotlin 2.2.x, which cannot read metadata newer than 2.3.
+kotlinCompat = "2.2"
+kotlinStdlibCompat = "2.2.20"
+agp = "8.13.0"
+coroutines = "1.11.0"
+serialization = "1.9.0"
+capacitorAndroid = "8.0.0"
+androidCompileSdk = "36"
+androidMinSdk = "24"
+
+[libraries]
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+capacitor-android = { module = "com.capacitorjs:core", version.ref = "capacitorAndroid" }
+
+# Gradle plugins used by the build-logic convention plugin
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+kotlin-serialization-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin" }
+android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
