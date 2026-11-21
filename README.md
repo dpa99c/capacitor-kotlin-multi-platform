@@ -16,12 +16,18 @@ This package is a base framework for building Kotlin Multiplatform (KMP) Capacit
 The base plugin is itself a (tiny) KMP plugin – `CapacitorKmp.getKmpInfo()` / `echo()` – which acts as
 an end-to-end self-test of the pipeline on every platform.
 
-👉 For a complete example (device info + accelerometer with shared step counting and shake detection) see
-[`capacitor-kotlin-multi-platform-consumer`](https://github.com/dpa99c/capacitor-kotlin-multi-platform-consumer).
+👉 Two complete examples (sibling repositories) implement the same features (device info, plus an
+accelerometer with shared step counting and shake detection) in the two supported ways:
+
+| Example | Approach | iOS Kotlin frameworks |
+|---|---|---|
+| [`capacitor-kotlin-multi-platform-consumer`](https://github.com/dpa99c/capacitor-kotlin-multi-platform-consumer) | **Multi-plugin**: one Capacitor plugin per feature, each built on this base | one per plugin, plus the base's own |
+| [`capacitor-kotlin-multi-platform-umbrella`](https://github.com/dpa99c/capacitor-kotlin-multi-platform-umbrella) | **Umbrella**: feature modules linked into one framework; one package registers several Capacitor plugins | **one** (3.2 MB vs 5.9 MB for the consumer example) |
 
 - **[docs/EXTENDING.md](docs/EXTENDING.md)** – build your own KMP-powered plugin, step by step
   - including the **[umbrella approach](docs/EXTENDING.md#alternative-one-umbrella-framework-per-app)**:
     put several features in one plugin, so iOS ships one Kotlin runtime instead of one per plugin
+    (reference: [`capacitor-kotlin-multi-platform-umbrella`](https://github.com/dpa99c/capacitor-kotlin-multi-platform-umbrella))
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** – how it works, compatibility notes, limitations
 
 ## How it works

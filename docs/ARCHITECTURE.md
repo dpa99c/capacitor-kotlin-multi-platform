@@ -175,6 +175,19 @@ direct dependencies:
 npm install capacitor-kotlin-multi-platform capacitor-kotlin-multi-platform-consumer
 ```
 
+### Umbrella variant
+
+[`capacitor-kotlin-multi-platform-umbrella`](../../capacitor-kotlin-multi-platform-umbrella) uses the
+same three build-time inputs: the convention plugin, the prebuilt `core` and the version catalog. It
+differs in four ways:
+
+- Its features are modules of **one** KMP build.
+- An `:umbrella` module links them, together with `core`, into the only XCFramework and JS module.
+- `scripts/sync-from-base.mjs` copies the base's `core` artifacts and Swift/TS helpers into the package,
+  so the base is only a `devDependency`.
+- Apps install just the umbrella package, which registers several Capacitor plugins (`KmpDevice`,
+  `KmpMotion`). The app ends up with one Kotlin runtime on iOS and one Kotlin/JS module on the Web.
+
 ## Compatibility decisions
 
 These were validated with a Capacitor 8.6 app on Android 16 (API 36) and iOS 26.5 / 27.2 simulators,
@@ -238,7 +251,9 @@ registerPlugin<MyPlugin>('MyPlugin', { web: () => (web ??= import('./web').then(
   frameworks. The fix is to compile all features into **one umbrella framework** by extending the base
   instead of adding plugins next to it. See
   [EXTENDING.md › Alternative: one umbrella framework per app](EXTENDING.md#alternative-one-umbrella-framework-per-app),
-  which also covers the trade-offs. The convention plugin supports this directly: only the module that
+  which also covers the trade-offs. The reference implementation is
+  [`capacitor-kotlin-multi-platform-umbrella`](../../capacitor-kotlin-multi-platform-umbrella): the same
+  features as the consumer, with 3.2 MB of Kotlin framework instead of 5.9 MB. The convention plugin supports this directly: only the module that
   declares `iosFramework(…)` exports a framework and JS module, while feature modules just publish to
   `kmp-repo`.
 - **Duplicated Kotlin/JS code on the Web.** Each plugin's JS output includes the Kotlin stdlib,

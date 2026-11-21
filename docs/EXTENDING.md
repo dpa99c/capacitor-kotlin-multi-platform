@@ -26,12 +26,16 @@ from it is the fastest way to start.
 - [Customising the base plugin](#customising-the-base-plugin)
 - [Troubleshooting](#troubleshooting)
 
-> **Two ways to structure KMP plugins.** Steps 1–8 describe the **multi-plugin** approach: every
-> feature is its own Capacitor plugin built on the base. It is modular and independently versioned, but
-> on iOS each plugin embeds its own Kotlin runtime (≈ 2.7 MB per plugin). If an app uses several
-> KMP-powered features, consider the
-> [**umbrella** approach](#alternative-one-umbrella-framework-per-app) instead: all features in one
-> KMP build, one framework and one runtime.
+> **Two ways to structure KMP plugins.**
+>
+> - **Multi-plugin** (steps 1–8): every feature is its own Capacitor plugin built on the base. It is
+>   modular and independently versioned, but on iOS each plugin embeds its own Kotlin runtime
+>   (≈ 2.7 MB per plugin). Reference:
+>   [`capacitor-kotlin-multi-platform-consumer`](../../capacitor-kotlin-multi-platform-consumer).
+> - **Umbrella**: all features in one KMP build, so one framework and one runtime. Use it when an app
+>   needs several KMP-powered features; see
+>   [Alternative: one umbrella framework per app](#alternative-one-umbrella-framework-per-app). Reference:
+>   [`capacitor-kotlin-multi-platform-umbrella`](../../capacitor-kotlin-multi-platform-umbrella).
 
 Prerequisites: Node 20+, JDK 17+ (21 recommended), Xcode with the iOS SDK, Android SDK. Gradle, Kotlin
 and Kotlin/Native are downloaded by the Gradle wrapper on the first build (~1 GB, into `~/.gradle` and
@@ -532,11 +536,15 @@ These are the measured sizes (arm64 device slice, Release, Kotlin 2.4.21):
 |---|---|---|
 | `CapacitorKmpCore`: baseline, almost only shared runtime | 2.7 MB | 0.8 MB |
 | `KmpConsumerShared`: baseline + device info + motion features | 3.2 MB | 0.96 MB |
-| Umbrella `AppKmp`: baseline + `core` + one feature module | 2.7 MB | 0.8 MB |
+| `KmpUmbrella`: baseline + device info + motion, the same features in **one** framework | 3.2 MB | 0.95 MB |
 
 A feature costs only tens to hundreds of KB. The ~2.7 MB baseline is paid **once per framework**. In the
-multi-plugin approach, an app with the base and N KMP plugins embeds N + 1 frameworks. With the base and
-three plugins that is ≈ 11 MB of mostly duplicated code, versus ≈ 3–3.5 MB for one umbrella framework.
+multi-plugin approach, an app with the base and N KMP plugins embeds N + 1 frameworks:
+
+- The consumer example app embeds 5.9 MB of Kotlin frameworks. The umbrella example app embeds 3.2 MB
+  for the same features.
+- With the base and three plugins it would be ≈ 11 MB of mostly duplicated code, versus ≈ 3–3.5 MB for
+  one umbrella framework.
 
 Each framework also has its own runtime at execution time: its own heap, GC and `Dispatchers.Default`
 thread pool. And Kotlin objects can't be passed between frameworks.
@@ -550,109 +558,141 @@ producing one plugin package**, which can still register *several* Capacitor plu
 > On the Web, each plugin's lazy Kotlin/JS chunk duplicates the stdlib (~140 KB gzipped). The umbrella
 > approach fixes that too, with one JS module.
 
-### How: extend the base instead of adding plugins next to it
+### How: one KMP build, several feature modules, one umbrella module
 
-Own the base: fork `capacitor-kotlin-multi-platform`, or copy it into your monorepo under your own name.
-Add each feature as a Gradle module, and let one **umbrella** module produce the only XCFramework and JS
-module. Apps install just this one package.
+> **Reference implementation:**
+> [`capacitor-kotlin-multi-platform-umbrella`](../../capacitor-kotlin-multi-platform-umbrella). It has the
+> same device-info and motion features as the consumer plugin, as two Capacitor plugins (`KmpDevice`,
+> `KmpMotion`) backed by **one** framework.
+>
+> | Kotlin frameworks on iOS (arm64, stripped / compressed) | |
+> |---|---|
+> | Consumer approach: `CapacitorKmpCore` + `KmpConsumerShared` | 5.9 MB / 1.8 MB |
+> | Umbrella approach: `KmpUmbrella` | **3.2 MB / 0.95 MB** |
+
+The umbrella **builds on the base without forking it.** `capacitor-kotlin-multi-platform` is a
+*build-time* dependency (`devDependency`) that provides the convention plugin, the prebuilt `core`
+library and the shared versions, exactly as for a consumer plugin. The differences:
+
+- Each feature is a Gradle **module** of one KMP build, not a separate plugin.
+- One **umbrella** module links `core` and every feature into the only XCFramework and JS module.
+- The package registers **one Capacitor plugin per feature**.
+- The published package is self-contained, and apps install **only** the umbrella. Installing the base
+  plugin in the app would link its own `CapacitorKmpCore` framework, a second Kotlin runtime.
 
 ```text
 kmp/
-├── core/                 (unchanged library – remove iosFramework()/jsModule() from its build file)
-├── features/motion/      feature = KMP library: KmpModule + expect/actual, no framework of its own
-├── features/device/
-└── umbrella/             depends on core + features, exports them into ONE framework + ONE JS module
+├── settings.gradle.kts       same as a consumer plugin (base build-logic, kmp-repo, version catalog)
+├── features/device/          feature = KMP library: KmpModule + expect/actual, no framework of its own
+├── features/motion/          may depend on other features: api(project(":features:device"))
+└── umbrella/                 core + all features → ONE framework (KmpUmbrella) + ONE JS module
 ```
 
 ```kotlin
-// kmp/settings.gradle.kts
-include(":core", ":features:motion", ":features:device", ":umbrella")
+// kmp/settings.gradle.kts (plus pluginManagement / repositories / versionCatalogs as in step 2)
+include(":features:device", ":features:motion", ":umbrella")
 
-// kmp/features/motion/build.gradle.kts – repeat per feature
-plugins { id("io.github.capacitorkmp.library") }
-group = "io.github.capacitorkmp"
-capacitorKmp { android(namespace = "io.github.capacitorkmp.motion") }   // no iosFramework(): not an entry module
-kotlin { sourceSets.commonMain.dependencies { api(project(":core")) } }
+// kmp/features/device/build.gradle.kts – repeat per feature
+plugins { id("io.github.capacitorkmp.plugin") }                       // library + api(core)
+group = "io.github.capacitorkmp.umbrella"
+capacitorKmp { android(namespace = "io.github.capacitorkmp.umbrella.device") }   // no iosFramework()
 
 // kmp/umbrella/build.gradle.kts
-plugins { id("io.github.capacitorkmp.library") }
-group = "io.github.capacitorkmp"
+plugins { id("io.github.capacitorkmp.plugin") }
+group = "io.github.capacitorkmp.umbrella"
 kotlin {
-    sourceSets.commonMain.dependencies {
-        api(project(":core")); api(project(":features:motion")); api(project(":features:device"))
-    }
+    sourceSets.commonMain.dependencies { api(project(":features:device")); api(project(":features:motion")) }
 }
 capacitorKmp {
-    android(namespace = "io.github.capacitorkmp.umbrella")
-    iosFramework("CapacitorKmpCore") {           // keep the name → Package.swift / podspec stay unchanged
-        export(project(":core")); export(project(":features:motion")); export(project(":features:device"))
+    android(namespace = "io.github.capacitorkmp.umbrella.all")
+    iosFramework("KmpUmbrella") {                // the ONLY framework: one Kotlin/Native runtime
+        export(project(":features:device")); export(project(":features:motion"))   // core is exported automatically
     }
-    jsModule("capacitor-kmp")
+    jsModule("kmp-umbrella")
 }
 
-// kmp/umbrella/src/commonMain/kotlin/Umbrella.kt – an umbrella module needs at least one source file
+// kmp/umbrella/src/commonMain/kotlin/…/Umbrella.kt – an umbrella module needs at least one source file
 internal object Umbrella
 
-// kmp/umbrella/src/jsMain/kotlin/Bridges.kt – one factory per Capacitor plugin
-@JsExport fun createMotionBridge(): JsKmpBridge = MotionModule().toJsBridge()
-@JsExport fun createDeviceBridge(): JsKmpBridge = DeviceModule().toJsBridge()
+// kmp/umbrella/src/jsMain/kotlin/…/Bridges.kt – one factory per Capacitor plugin, one JS module
+@JsExport fun createKmpDeviceBridge(): JsKmpBridge = DeviceModule().toJsBridge()
+@JsExport fun createKmpMotionBridge(): JsKmpBridge = MotionModule().toJsBridge()
 ```
 
 `capacitorExport` publishes every module to `kmp-repo/`. Only the module that declares `iosFramework(…)`
-exports the XCFramework and JS module. Then register **one Capacitor plugin per feature** in the same
-package:
+exports the XCFramework and JS module.
+
+A small script, run after `capacitorExport` as part of `npm run kmp:build`, makes the package
+self-contained: [`scripts/sync-from-base.mjs`](../../capacitor-kotlin-multi-platform-umbrella/scripts/sync-from-base.mjs).
+It copies three things from the base package:
+
+- the `core` Maven artifacts, into the umbrella's `kmp-repo/` (Android resolves them transitively)
+- `KmpCapacitor.swift`, into the plugin's Swift target
+- `kmp-web.ts`, into `src/generated/`
+
+The plugin glue then registers one Capacitor plugin per feature:
 
 ```groovy
-// android/build.gradle – depend on the umbrella instead of core
-api "io.github.capacitorkmp:umbrella-android:$capacitorKmpVersion"
+// android/build.gradle – one dependency for everything; the repo serves both groups
+content { includeGroup "io.github.capacitorkmp"; includeGroup "io.github.capacitorkmp.umbrella" }
+implementation "io.github.capacitorkmp.umbrella:umbrella-android:$umbrellaKmpVersion"
 ```
 
 ```kotlin
-// android/src/main/kotlin/…/MotionPlugin.kt – one plugin class per file
-@CapacitorPlugin(name = "Motion")
-class MotionPlugin : KmpCapacitorPlugin() {
+// android/src/main/kotlin/…/KmpMotionPlugin.kt – one plugin class per file
+@CapacitorPlugin(name = "KmpMotion")
+class KmpMotionPlugin : KmpCapacitorPlugin() {
     override fun createModule(): KmpModule = MotionModule()
-    @PluginMethod fun start(call: PluginCall) = forward(call)
+    @PluginMethod fun startMotionUpdates(call: PluginCall) = forward(call)
+    // …
 }
 ```
 
 ```swift
-// ios/Sources/CapacitorKmpPlugin/MotionPlugin.swift – one plugin class per file
-import CapacitorKmpCore   // the umbrella framework: core + all features
+// ios/Sources/KmpUmbrellaPlugin/KmpMotionPlugin.swift – one plugin class per file
+import Capacitor
+import KmpUmbrella   // core + all features
 
-@objc(MotionPlugin)
-public class MotionPlugin: CAPPlugin, CAPBridgedPlugin {
-    public let identifier = "MotionPlugin"
-    public let jsName = "Motion"
-    public let pluginMethods = [CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise)]
+@objc(KmpMotionPlugin)
+public class KmpMotionPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "KmpMotionPlugin"
+    public let jsName = "KmpMotion"
+    public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "startMotionUpdates", returnType: CAPPluginReturnPromise)]
     private lazy var kmp = KmpBridge(module: MotionModule())
     override public func load() { KmpCapacitor.connectEvents(of: self) { kmp.setEventListener(listener: $0) } }
-    @objc func start(_ call: CAPPluginCall) {
+    @objc func startMotionUpdates(_ call: CAPPluginCall) {
         KmpCapacitor.forward(call) { kmp.call(method: $0, argsJson: $1, onSuccess: $2, onError: $3) }
     }
 }
 ```
 
 ```ts
-// src/index.ts – every plugin's web implementation loads the same umbrella JS module
-let motionWeb: Promise<MotionWeb> | undefined;
-export const Motion = registerPlugin<MotionPlugin>('Motion', {
-  web: () => (motionWeb ??= import('./web/motion').then((m) => new m.MotionWeb())),
+// src/web.ts – every plugin loads the same Kotlin/JS module (evaluated once)
+const umbrella = () => import('./generated/kmp/kmp-umbrella.mjs');
+export class KmpMotionWeb extends KmpWebPlugin implements KmpMotionPlugin {
+  constructor() { super(() => umbrella().then((m) => m.createKmpMotionBridge())); }
+  // …
+}
+// src/index.ts – one memoised registerPlugin per feature
+let motionWeb: Promise<KmpMotionWeb> | undefined;
+export const KmpMotion = registerPlugin<KmpMotionPlugin>('KmpMotion', {
+  web: () => (motionWeb ??= import('./web').then((m) => new m.KmpMotionWeb())),
 });
-// src/web/motion.ts:
-//   super(() => import('../generated/kmp/capacitor-kmp.mjs').then((m) => m.createMotionBridge()));
 ```
 
 Notes:
 
 - **One plugin class per source file.** The Capacitor CLI registers only the *first* `@CapacitorPlugin`
-  class (Android) or `@objc(Name)` class (iOS) it finds in each file.
-- **Feature dependencies.** Features may depend on each other (`api(project(":features:x"))`). Pass
-  Kotlin objects directly between features: they share one runtime.
-- **The base's self-test** (`CapacitorKmp`) can stay, since it costs nothing extra in the umbrella, or
-  you can remove it.
-- **Consumer layout as a starting point.** The consumer plugin's `kmp/shared` code drops in as a feature
-  module unchanged: `ConsumerModule`, `device/`, `motion/` and the `actual`s.
+  class (Android) or Objective-C-named class (iOS) it finds in each file. The iOS regex also matches the
+  `@objc(…)` attribute inside **comments**: a comment mentioning it above the class registers a bogus
+  plugin and hides the real one.
+- **Features can depend on each other** (`api(project(":features:x"))`) and call each other's Kotlin
+  directly, because they share one runtime. In the reference, `KmpMotion.isMotionAvailable()` asks the
+  device feature whether it runs on an emulator or simulator, and recommends the simulated source there.
+- **Alternative: fork the base.** If you would rather own everything in one repository, copy
+  `capacitor-kotlin-multi-platform` and add the feature and umbrella modules to its `kmp/` build. Remove
+  `iosFramework()`/`jsModule()` from `core`, and name the umbrella framework `CapacitorKmpCore` to keep
+  `Package.swift`/the podspec unchanged. You trade easy base upgrades for a single repository.
 
 ### Benefits and trade-offs
 
