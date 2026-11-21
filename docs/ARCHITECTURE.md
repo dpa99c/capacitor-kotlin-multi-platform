@@ -226,15 +226,25 @@ registerPlugin<MyPlugin>('MyPlugin', { web: () => (web ??= import('./web').then(
 
 ## Limitations and trade-offs
 
-- **One Kotlin runtime per iOS framework.** Each KMP plugin ships its own dynamic XCFramework containing
-  its own Kotlin/Native runtime and its own copy of `core`. An app using the base plus one consumer embeds
-  two frameworks (`CapacitorKmpCore`, `KmpConsumerShared`). They work side by side, because their ObjC
-  class names are prefixed with the framework name, but the duplication adds a few MB. Kotlin objects
-  cannot be passed between plugins' frameworks; use the JSON boundary instead. (A single "umbrella"
-  framework per app would avoid this but requires an app-level Kotlin build, which is out of scope.)
+- **One Kotlin runtime per iOS framework.** Each KMP plugin ships its own dynamic XCFramework. Each
+  framework embeds its own Kotlin/Native runtime, stdlib, kotlinx libraries and copy of `core`. That
+  baseline is **≈ 2.7 MB stripped (≈ 0.8 MB compressed) per framework**, while the plugin's own code is
+  typically only tens to hundreds of KB. An app using the base plus one consumer embeds two frameworks
+  (`CapacitorKmpCore`, `KmpConsumerShared`). The base plus N plugins embeds N + 1.
+
+  The frameworks work side by side, because their ObjC class names are prefixed with the framework
+  name. But Kotlin objects can't be passed between plugins' frameworks, and each runtime has its own
+  heap, GC and thread pool. No build setting shares a runtime between separately compiled Kotlin
+  frameworks. The fix is to compile all features into **one umbrella framework** by extending the base
+  instead of adding plugins next to it. See
+  [EXTENDING.md › Alternative: one umbrella framework per app](EXTENDING.md#alternative-one-umbrella-framework-per-app),
+  which also covers the trade-offs. The convention plugin supports this directly: only the module that
+  declares `iosFramework(…)` exports a framework and JS module, while feature modules just publish to
+  `kmp-repo`.
 - **Duplicated Kotlin/JS code on the Web.** Each plugin's JS output includes the Kotlin stdlib,
   coroutines and serialization. That is about 820 KB unminified, ~140 KB gzipped, for `core`. The chunk
-  is loaded lazily, only when the plugin is used on the Web.
+  is loaded lazily, only when the plugin is used on the Web. The umbrella approach produces a single JS
+  module.
 - **Same Kotlin version for base and consumers.** Consumers inherit the base's version catalog. Upgrading
   Kotlin means releasing a new base version and rebuilding consumers.
 - **No x86_64 iOS simulator.** Only `iosArm64` and `iosSimulatorArm64` are built. Intel-Mac simulators

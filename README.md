@@ -20,6 +20,8 @@ an end-to-end self-test of the pipeline on every platform.
 [`capacitor-kotlin-multi-platform-consumer`](https://github.com/dpa99c/capacitor-kotlin-multi-platform-consumer).
 
 - **[docs/EXTENDING.md](docs/EXTENDING.md)** – build your own KMP-powered plugin, step by step
+  - including the **[umbrella approach](docs/EXTENDING.md#alternative-one-umbrella-framework-per-app)**:
+    put several features in one plugin, so iOS ships one Kotlin runtime instead of one per plugin
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** – how it works, compatibility notes, limitations
 
 ## How it works

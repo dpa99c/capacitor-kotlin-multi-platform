@@ -158,7 +158,11 @@ open class CapacitorKmpLibraryPlugin : Plugin<Project> {
         tasks.register("capacitorExport") {
             group = TASK_GROUP
             description = "Builds and exports Android (Maven), iOS (XCFramework) and Web (ES module) artifacts."
-            dependsOn("publishAllPublicationsToCapacitorKmpRepository", exportIos, exportJs)
+            // Every module publishes its Maven artifacts (Android resolves them transitively). Only the
+            // *entry* module – the one declaring `iosFramework(...)` – exports the XCFramework and the JS
+            // module, so feature modules of an umbrella build don't produce frameworks of their own.
+            dependsOn("publishAllPublicationsToCapacitorKmpRepository")
+            dependsOn(ext.frameworkName.map { listOf(exportIos, exportJs) }.orElse(emptyList()))
         }
     }
 

@@ -43,7 +43,10 @@ abstract class CapacitorKmpExtension @Inject constructor(
     }
 
     /**
-     * Declares the dynamic XCFramework that the plugin's `Package.swift` / podspec vendor.
+     * Declares the dynamic XCFramework that the plugin's `Package.swift` / podspec vendor, and makes
+     * this module the plugin's *entry* module: `capacitorExport` exports its XCFramework and JS module.
+     * In an umbrella build, call this only in the umbrella module and `export(project(":feature"))`
+     * every feature module whose API Swift needs.
      * The base `core` library is exported automatically for consumer plugins so Swift can use
      * `KmpBridge` & co. Use [configure] to export further modules or set binary options.
      */
